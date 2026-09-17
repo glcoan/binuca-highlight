@@ -16,7 +16,7 @@
 - Modify: `scripts/generate-openai-voices.ps1`
 - Verify: `docs/superpowers/specs/2026-09-17-male-narrator-voice-design.md`
 
-- [ ] **Step 1: Run a static assertion that demonstrates the old defaults fail the new specification**
+- [x] **Step 1: Run a static assertion that demonstrates the old defaults fail the new specification**
 
 Run:
 
@@ -27,7 +27,7 @@ if ($script -notmatch '\$Voice = "onyx"' -or $script -notmatch 'Pulta cagada') {
 
 Expected: exit code `1`, because the current generator still uses `coral` and the old confirmation text.
 
-- [ ] **Step 2: Change the voice, texts, and direction**
+- [x] **Step 2: Change the voice, texts, and direction**
 
 Set the parameter default to:
 
@@ -49,13 +49,13 @@ Use this instruction without allowing additional words or effects:
 Fale em português brasileiro com voz masculina grave de narrador esportivo profissional. Entregue a frase com energia muito alta, confiança, ritmo ágil e um crescendo explosivo de celebração no final. Mantenha dicção clara. Pronuncie exatamente o texto fornecido, sem acrescentar bordões, palavras, música, torcida ou efeitos.
 ```
 
-- [ ] **Step 3: Run the static assertion again**
+- [x] **Step 3: Run the static assertion again**
 
 Run the Step 1 command.
 
 Expected: exit code `0`.
 
-- [ ] **Step 4: Commit the generator change**
+- [x] **Step 4: Commit the generator change**
 
 ```powershell
 git add scripts\generate-openai-voices.ps1
@@ -70,7 +70,7 @@ git commit -m "feat: use male sports narrator confirmations"
 - Replace: `app/src/main/res/raw/clip_voice_30.mp3`
 - Replace: `dist/Binuca-Highlight-debug.apk`
 
-- [ ] **Step 1: Generate all three MP3 resources**
+- [x] **Step 1: Generate all three MP3 resources**
 
 Load `OPENAI_API_KEY` from the ignored `.env` into the current process without printing it, run:
 
@@ -80,13 +80,13 @@ Load `OPENAI_API_KEY` from the ignored `.env` into the current process without p
 
 Expected: three `Gerado:` lines and exit code `0`.
 
-- [ ] **Step 2: Validate generated resource headers and sizes**
+- [x] **Step 2: Validate generated resource headers and sizes**
 
 Read only the first three bytes and size of each MP3.
 
 Expected: three non-empty files with an MPEG frame header beginning with `FF` or an `ID3` header.
 
-- [ ] **Step 3: Run the complete local verification**
+- [x] **Step 3: Run the complete local verification**
 
 ```powershell
 .\gradlew.bat testDebugUnitTest lintDebug copyDebugApk
@@ -94,13 +94,13 @@ Expected: three non-empty files with an MPEG frame header beginning with `FF` or
 
 Expected: `BUILD SUCCESSFUL`, zero failed unit tests and zero lint errors.
 
-- [ ] **Step 4: Inspect the packaged APK**
+- [x] **Step 4: Inspect the packaged APK**
 
 Use `apkanalyzer manifest permissions` and list ZIP entries.
 
 Expected: no `android.permission.INTERNET`, and all three compiled raw voice resources are present.
 
-- [ ] **Step 5: Attempt instrumented tests**
+- [x] **Step 5: Attempt instrumented tests**
 
 ```powershell
 .\gradlew.bat connectedDebugAndroidTest
@@ -108,7 +108,9 @@ Expected: no `android.permission.INTERNET`, and all three compiled raw voice res
 
 Expected with a connected Android 10+ device: tests pass. If no device is connected, report that environmental blocker rather than treating instrumented coverage as passed.
 
-- [ ] **Step 6: Commit generated resources and verified application changes**
+Actual result: instrumentation APK compiled successfully, but execution stopped with `No connected devices!`.
+
+- [x] **Step 6: Commit generated resources and verified application changes**
 
 ```powershell
 git add app scripts gradle build.gradle.kts settings.gradle.kts gradle.properties gradlew gradlew.bat README.md .gitignore
