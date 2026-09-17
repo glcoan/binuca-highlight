@@ -14,9 +14,9 @@ Substituir as três confirmações faladas atuais por locuções masculinas em p
 
 ## Textos
 
-- “Clipe de dez segundos registrado com sucesso!”
-- “Clipe de vinte segundos registrado com sucesso!”
-- “Clipe de trinta segundos registrado com sucesso!”
+- “Clipe de dez segundos gravado! Pulta cagada!!”
+- “Clipe de vinte segundos gravado! Pulta cagada!!”
+- “Clipe de trinta segundos gravado! Pulta cagada!!”
 
 ## Integração
 
