@@ -78,6 +78,7 @@ import com.binuca.highlight.remote.RemoteTriggerGate
 import com.binuca.highlight.settings.AppSettings
 import com.binuca.highlight.ui.CameraEvent
 import com.binuca.highlight.ui.CameraViewModel
+import com.binuca.highlight.ui.resolveDisplayRotation
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -202,7 +203,11 @@ private fun CameraScreen(viewModel: CameraViewModel) {
                 PreviewView(androidContext).apply {
                     scaleType = PreviewView.ScaleType.FILL_CENTER
                     implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                    viewModel.attachCamera(lifecycleOwner, this, display.rotation)
+                    viewModel.attachCamera(
+                        lifecycleOwner,
+                        this,
+                        resolveDisplayRotation(display?.rotation),
+                    )
                 }
             },
             modifier = Modifier.fillMaxSize(),
