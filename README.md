@@ -18,6 +18,12 @@ Capturas reais do aplicativo em uso, nas orientações horizontal e vertical. Os
 
 <img src="docs/screenshots/interface-vertical.png" alt="Interface vertical do Binuca Highlight, com controles no topo e zoom e botões de clipe na parte inferior" width="320">
 
+### Configurações
+
+Painel para ajustar a duração padrão dos clipes, qualidade, som, vibração e confirmação falada, além de restaurar a exposição e testar o controle remoto.
+
+<img src="docs/screenshots/configuracoes.jpg" alt="Painel de configurações do Binuca Highlight com opções de duração, qualidade, áudio, vibração e teste do controle remoto" width="320">
+
 ## Características
 
 - Android 10+ (`minSdk 29`), pacote `com.binuca.highlight`.
