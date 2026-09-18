@@ -2,7 +2,21 @@
 
 Aplicativo Android para registrar as melhores jogadas de sinuca sem armazenar a partida inteira. Deixe o celular apontado para a mesa e, depois de uma jogada, toque em **10 s**, **20 s** ou **30 s** para salvar os últimos segundos com áudio diretamente na Galeria, em `Movies/Binuca Highlight`.
 
+**O uso não se limita à sinuca.** Apesar do nome e da identidade visual, o aplicativo pode registrar momentos de outras atividades: esportes, treinos, jogos de mesa, resolução de cubos mágicos, apresentações ou situações do dia a dia. Basta apontar a câmera para a atividade e salvar o trecho depois que o momento acontecer.
+
 O app mantém aproximadamente 31 segundos de vídeo H.264 e áudio AAC em um buffer circular na RAM. Só os highlights solicitados são gravados no armazenamento. O uso da câmera continua consumindo bateria e memória enquanto a sessão está ativa.
+
+## Interface
+
+Capturas reais do aplicativo em uso, nas orientações horizontal e vertical. Os indicadores ao redor dos botões mostram quanto do buffer já está disponível para cada duração.
+
+### Horizontal
+
+![Interface horizontal com prévia da câmera, controles de exposição, lanterna, configurações, zoom e botões de clipes de 10, 20 e 30 segundos](docs/screenshots/interface-horizontal.png)
+
+### Vertical
+
+<img src="docs/screenshots/interface-vertical.png" alt="Interface vertical do Binuca Highlight, com controles no topo e zoom e botões de clipe na parte inferior" width="320">
 
 ## Características
 
