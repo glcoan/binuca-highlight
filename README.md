@@ -44,7 +44,7 @@ $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
 ```
 
-Também é possível configurar o caminho do SDK em `local.properties` via Android Studio. Esse arquivo é local e não deve ser versionado. A primeira compilação precisa de internet para baixar dependências; o aplicativo instalado funciona offline. Nenhuma chave OpenAI é necessária para compilar ou usar o APK, pois os MP3s já estão incluídos.
+Também é possível configurar o caminho do SDK em `local.properties` via Android Studio. Esse arquivo é local e não deve ser versionado. A primeira compilação precisa de internet para baixar dependências; o aplicativo instalado funciona offline. Nenhuma chave de API é necessária para compilar ou usar o APK, pois os MP3s já estão incluídos.
 
 ### Gerar o APK debug
 
@@ -88,17 +88,18 @@ Para acompanhar erros de câmera/codec durante testes:
 adb logcat | Select-String "Binuca|CameraX|MediaCodec"
 ```
 
-## Locuções da OpenAI
+## Áudios de confirmação
 
-As locuções originais foram geradas por IA da OpenAI. O APK não contém chave, cliente de API ou permissão de internet. Os três MP3s são recursos empacotados em `app/src/main/res/raw`. O quarto MP3, `cash_register_purchase.mp3`, é o efeito de caixa registradora fornecido ao projeto.
+As locuções atuais foram produzidas externamente com ElevenLabs e fornecidas como MP3. O projeto apenas reproduz os arquivos locais: não possui integração, script de geração de voz, chave ou cliente de API de serviços de voz.
 
-Para gerar novamente os arquivos, defina `OPENAI_API_KEY` somente numa sessão local segura e execute:
+Os recursos ficam em `app/src/main/res/raw`:
 
-```powershell
-.\scripts\generate-openai-voices.ps1
-```
+- `clip_voice_10.mp3`: confirmação do clipe de 10 segundos.
+- `clip_voice_20.mp3`: confirmação do clipe de 20 segundos.
+- `clip_voice_30.mp3`: confirmação do clipe de 30 segundos.
+- `cash_register_purchase.mp3`: efeito de caixa registradora.
 
-Nunca grave a chave no repositório, `gradle.properties`, código-fonte ou histórico do terminal compartilhado.
+Para trocar os áudios, substitua os MP3s mantendo esses nomes e execute `.\gradlew.bat copyDebugApk`. As opções de som e voz permanecem independentes nas configurações do app.
 
 ## Arquivos locais e segurança
 
