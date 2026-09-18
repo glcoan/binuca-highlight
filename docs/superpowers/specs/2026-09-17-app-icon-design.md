@@ -8,7 +8,7 @@ Substituir o ícone atual com a letra “B” por um símbolo que comunique imed
 
 O ícone será uma câmera fotográfica antiga completa, no estilo **Retrô limpa**. A lente circular inteira da câmera será representada por uma bola 8 preta padrão do bilhar. Não haverá um segundo símbolo de câmera dentro da bola.
 
-A câmera ficará centralizada vertical e horizontalmente no quadro do ícone. Em relação à primeira prévia aprovada, o conjunto será deslocado ligeiramente para baixo para que as margens visuais superior e inferior fiquem equilibradas.
+A câmera ficará centralizada vertical e horizontalmente no quadro do ícone. Em relação à primeira prévia aprovada, o conjunto será deslocado para cima para equilibrar as margens. Os limites do desenho serão centrados em (54, 54) no quadro de 108 unidades, dentro da área segura adaptável.
 
 ## Direção visual
 

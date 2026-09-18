@@ -43,9 +43,11 @@ class AacAudioEncoder(
                 )
                 .setBufferSizeInBytes(minBuffer * 4)
                 .build()
+            recorder = audioRecord
             check(audioRecord.state == AudioRecord.STATE_INITIALIZED) { "Não foi possível abrir o microfone" }
 
             val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
+            codec = encoder
             val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, 1).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
                 setInteger(MediaFormat.KEY_BIT_RATE, 128_000)
@@ -56,6 +58,9 @@ class AacAudioEncoder(
             recorder = audioRecord
             codec = encoder
             audioRecord.startRecording()
+            check(audioRecord.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                "Não foi possível iniciar a gravação do microfone"
+            }
             worker = Thread({ encodeLoop(audioRecord, encoder) }, "Binuca-AudioEncoder").apply { start() }
         } catch (error: Throwable) {
             running.set(false)
@@ -79,6 +84,9 @@ class AacAudioEncoder(
                         val ptsUs = firstPtsUs + submittedFrames * 1_000_000L / SAMPLE_RATE
                         submittedFrames += bytesRead / BYTES_PER_FRAME
                         encoder.queueInputBuffer(inputIndex, 0, bytesRead, ptsUs, 0)
+                    } else {
+                        check(!running.get()) { "Falha ao ler o microfone (código $bytesRead)" }
+                        break
                     }
                 }
                 drainEncoder(encoder, info)

@@ -2,6 +2,10 @@ package com.binuca.highlight.ui
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.os.SystemClock
+import com.binuca.highlight.capture.CaptureCooldown
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import android.view.Surface
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.AndroidViewModel
@@ -36,6 +40,8 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     val readiness = engine.readiness
     val sessionState = engine.sessionState
     val engineError = engine.errorMessage
+    val cameraControls = engine.controls
+    fun selectZoom(shortcut: com.binuca.highlight.capture.ZoomShortcut) = engine.selectZoom(shortcut)
     val settings: StateFlow<AppSettings> = settingsRepository.settings.stateIn(
         viewModelScope,
         SharingStarted.Eagerly,
@@ -45,6 +51,10 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     val events = _events.asSharedFlow()
     private val _savingCounts = MutableStateFlow<Map<ClipDuration, Int>>(emptyMap())
     val savingCounts = _savingCounts.asStateFlow()
+    private val captureCooldown = CaptureCooldown(SystemClock::elapsedRealtime)
+    private val _captureCooldownSeconds = MutableStateFlow(0)
+    val captureCooldownSeconds = _captureCooldownSeconds.asStateFlow()
+    private var cooldownJob: Job? = null
     private val saveQueue = SerializedSaveQueue<SaveJob>(viewModelScope) { job ->
         val result = muxer.write(job.snapshot, job.formats, job.request.duration)
         decrementSaving(job.request.duration)
@@ -102,6 +112,11 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun requestCapture(duration: ClipDuration, source: TriggerSource) {
+        val remainingMs = captureCooldown.remainingMs()
+        if (remainingMs > 0) {
+            _events.tryEmit(CameraEvent.Wait("Aguarde ${(remainingMs + 999) / 1_000} segundos para outro clipe"))
+            return
+        }
         val frozen = runCatching { engine.captureSnapshot(duration) }.getOrElse { error ->
             _events.tryEmit(CameraEvent.Wait(error.message ?: "O buffer ainda não está pronto"))
             return
@@ -117,6 +132,18 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         if (!accepted) {
             decrementSaving(duration)
             _events.tryEmit(CameraEvent.Error("A fila de salvamento foi encerrada"))
+        } else {
+            captureCooldown.onCaptureAccepted()
+            cooldownJob?.cancel()
+            _captureCooldownSeconds.value = 5
+            cooldownJob = viewModelScope.launch {
+                while (true) {
+                    val remaining = captureCooldown.remainingMs()
+                    _captureCooldownSeconds.value = ((remaining + 999) / 1_000).toInt()
+                    if (remaining == 0L) break
+                    delay(minOf(remaining, 100L))
+                }
+            }
         }
     }
 
@@ -142,11 +169,12 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun setVoice(value: Boolean) = viewModelScope.launch { settingsRepository.setVoice(value) }
     fun zoomBy(scale: Float) = engine.zoomBy(scale)
     fun setZoom(ratio: Float) = engine.setZoomRatio(ratio)
-    fun zoomRatios(): List<Float> = engine.availableZoomRatios()
     fun focusAt(x: Float, y: Float) = engine.focusAt(x, y)
     fun setTorch(enabled: Boolean) = engine.setTorch(enabled)
     fun hasTorch(): Boolean = engine.hasTorch()
     fun adjustExposure(delta: Int) = engine.adjustExposure(delta)
+    val exposure = engine.exposure
+    fun resetExposure() = engine.resetExposure()
 
     private fun incrementSaving(duration: ClipDuration) {
         _savingCounts.value = _savingCounts.value.toMutableMap().apply {

@@ -38,6 +38,13 @@ class CameraCaptureEngine(
     val sessionState: StateFlow<CameraSessionState> = _sessionState.asStateFlow()
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+    private val _controls = MutableStateFlow(CameraControls())
+    val controls = _controls.asStateFlow()
+    private var lenses = emptyList<CameraLens>()
+    private var selectedLensId = "default"
+    private var pendingZoom = 1f
+    private val _exposure = MutableStateFlow(ExposureControls())
+    val exposure = _exposure.asStateFlow()
 
     private var provider: ProcessCameraProvider? = null
     private var camera: Camera? = null
@@ -70,10 +77,15 @@ class CameraCaptureEngine(
     }
 
     fun restart(quality: CaptureQuality = this.quality, useFrontCamera: Boolean = this.useFrontCamera) {
+        if (this.useFrontCamera != useFrontCamera) {
+            selectedLensId = "default"
+            pendingZoom = 1f
+        }
         this.quality = quality
         this.useFrontCamera = useFrontCamera
-        resetBuffer()
         releaseSession()
+        resetBuffer()
+        recoveryAttempted = false
         if (active) bindSession()
     }
 
@@ -116,12 +128,46 @@ class CameraCaptureEngine(
                     .setTargetFrameRate(Range(30, 30))
                     .setTargetRotation(targetRotation)
                     .build()
-                val selector = if (useFrontCamera) {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
+                lenses = discoverLenses(cameraProvider, useFrontCamera)
+                // Select the wide stream once, before buffering. Prefer the logical camera
+                // whenever its zoom range already includes ultra-wide.
+                val defaultLens = lenses.first { it.id == "default" }
+                val defaultMin = cameraProvider.getCameraInfo(defaultLens.selector).zoomState.value?.minZoomRatio ?: 1f
+                if (selectedLensId == "default" && defaultMin >= 1f && !recoveryAttempted) {
+                    val wide = lenses.minByOrNull { it.scale }
+                    if (wide != null && wide.scale < 1f) {
+                        selectedLensId = wide.id
+                        pendingZoom = 1f / wide.scale
+                    }
                 }
+                val lens = lenses.firstOrNull { it.id == selectedLensId } ?: lenses.first { it.id == "default" }
+                selectedLensId = lens.id
+                val selector = lens.selector
                 camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, videoCapture)
+                val bound = camera!!
+                val exposureState = bound.cameraInfo.exposureState
+                _exposure.value = ExposureControls(
+                    exposureState.exposureCompensationIndex,
+                    exposureState.exposureCompensationRange.lower,
+                    exposureState.exposureCompensationRange.upper,
+                    exposureState.exposureCompensationStep.toFloat(),
+                )
+                fun updateControls() {
+                    if (camera !== bound) return
+                    val zoom = bound.cameraInfo.zoomState.value ?: return
+                    val shortcuts = continuousZoomShortcuts(lens.id, lens.scale,
+                        zoom.minZoomRatio, zoom.maxZoomRatio, lenses.map { it.scale })
+                    _controls.value = CameraControls(
+                        shortcuts,
+                        lens.id, zoom.zoomRatio, zoom.minZoomRatio, zoom.maxZoomRatio,
+                        bound.cameraInfo.hasFlashUnit(), bound.cameraInfo.torchState.value == androidx.camera.core.TorchState.ON,
+                        lens.scale,
+                    )
+                }
+                bound.cameraInfo.zoomState.observe(lifecycleOwner) { updateControls() }
+                bound.cameraInfo.torchState.observe(lifecycleOwner) { updateControls() }
+                setZoomRatio(pendingZoom)
+                updateControls()
                 audioEncoder = AacAudioEncoder(
                     onSample = ::onEncodedSample,
                     onFormat = formats::setAudio,
@@ -160,16 +206,14 @@ class CameraCaptureEngine(
         camera?.cameraControl?.setZoomRatio(ratio.coerceIn(zoom.minZoomRatio, zoom.maxZoomRatio))
     }
 
+    fun selectZoom(shortcut: ZoomShortcut) {
+        if (shortcut !in _controls.value.shortcuts) return
+        setZoomRatio(shortcut.ratio)
+    }
+
     fun zoomBy(scaleFactor: Float) {
         val zoom = camera?.cameraInfo?.zoomState?.value ?: return
         setZoomRatio(zoom.zoomRatio * scaleFactor)
-    }
-
-    fun availableZoomRatios(): List<Float> {
-        val zoom = camera?.cameraInfo?.zoomState?.value ?: return listOf(1f)
-        return listOf(0.5f, 1f, 2f, 3f, 5f, 10f)
-            .filter { it in zoom.minZoomRatio..zoom.maxZoomRatio }
-            .ifEmpty { listOf(zoom.minZoomRatio) }
     }
 
     fun focusAt(x: Float, y: Float) {
@@ -189,12 +233,29 @@ class CameraCaptureEngine(
     fun hasTorch(): Boolean = camera?.cameraInfo?.hasFlashUnit() == true
 
     fun adjustExposure(delta: Int) {
-        val state = camera?.cameraInfo?.exposureState ?: return
-        val next = (state.exposureCompensationIndex + delta).coerceIn(
-            state.exposureCompensationRange.lower,
-            state.exposureCompensationRange.upper,
-        )
-        camera?.cameraControl?.setExposureCompensationIndex(next)
+        applyExposure(_exposure.value.index + delta, delta)
+    }
+
+    fun resetExposure() = applyExposure(0, 0)
+
+    private fun applyExposure(index: Int, direction: Int) {
+        val bound = camera ?: return
+        val current = _exposure.value
+        if (current.busy) return
+        val target = index.coerceIn(current.min, current.max)
+        if (target == current.index) return
+        _exposure.value = current.copy(busy = true)
+        val future = bound.cameraControl.setExposureCompensationIndex(target)
+        future.addListener({
+            if (camera !== bound) return@addListener
+            try {
+                val applied = future.get()
+                _exposure.value = current.copy(index = applied, revision = current.revision + 1, direction = direction)
+            } catch (error: Exception) {
+                _exposure.value = current
+                _errorMessage.value = "Não foi possível ajustar a exposição. Tente novamente."
+            }
+        }, mainExecutor)
     }
 
     fun stop() {
@@ -215,12 +276,17 @@ class CameraCaptureEngine(
             if (!active) return@post
             _errorMessage.value = error.message ?: "Falha na câmera ou no microfone"
             if (!recoveryAttempted) {
+                selectedLensId = "default"
+                pendingZoom = 1f
                 recoveryAttempted = true
                 _sessionState.value = CameraSessionState.Recovering
                 releaseSession()
                 resetBuffer()
                 mainHandler.postDelayed({ if (active) bindSession() }, 1_000)
             } else {
+                active = false
+                releaseSession()
+                resetBuffer()
                 _sessionState.value = CameraSessionState.Stopped
             }
         }
@@ -233,6 +299,12 @@ class CameraCaptureEngine(
     }
 
     private fun releaseSession() {
+        _exposure.value = ExposureControls()
+        owner?.let { lifecycleOwner ->
+            camera?.cameraInfo?.zoomState?.removeObservers(lifecycleOwner)
+            camera?.cameraInfo?.torchState?.removeObservers(lifecycleOwner)
+        }
+        _controls.value = CameraControls()
         runCatching { provider?.unbindAll() }
         camera = null
         audioEncoder?.close()

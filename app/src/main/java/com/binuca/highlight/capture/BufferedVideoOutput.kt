@@ -1,5 +1,6 @@
 package com.binuca.highlight.capture
 
+import android.annotation.SuppressLint
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -8,9 +9,14 @@ import android.os.HandlerThread
 import android.util.Size
 import android.view.Surface
 import androidx.camera.core.SurfaceRequest
+import androidx.camera.core.impl.ConstantObservable
+import androidx.camera.core.impl.Observable
+import androidx.camera.video.MediaSpec
+import androidx.camera.video.VideoSpec
 import androidx.camera.video.VideoOutput
 import java.util.concurrent.Executor
 
+@SuppressLint("RestrictedApi")
 class BufferedVideoOutput(
     private val quality: CaptureQuality,
     private val callbackExecutor: Executor,
@@ -25,12 +31,30 @@ class BufferedVideoOutput(
     @Volatile private var inputSurface: Surface? = null
     @Volatile private var closing = false
 
+    private val mediaSpecification = ConstantObservable.withValue(
+        MediaSpec.builder()
+            .setOutputFormat(MediaSpec.OUTPUT_FORMAT_MPEG_4)
+            .setVideoSpec(
+                VideoSpec.builder()
+                    .setMimeType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                    .setBitrate(quality.bitrate)
+                    .setEncodeFrameRate(30)
+                    .build(),
+            )
+            .build(),
+    )
+
+    override fun getMediaSpec(): Observable<MediaSpec> = mediaSpecification
+
+    override fun isSourceStreamRequired(): Observable<Boolean> = ConstantObservable.withValue(true)
+
     override fun onSurfaceRequested(surfaceRequest: SurfaceRequest) {
         try {
             closeCodec()
             closing = false
             val size = surfaceRequest.resolution
             val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            codec = encoder
             val format = MediaFormat.createVideoFormat(
                 MediaFormat.MIMETYPE_VIDEO_AVC,
                 size.width,
@@ -95,6 +119,7 @@ class BufferedVideoOutput(
                 if (inputSurface === surface) closeCodec()
             }
         } catch (error: Throwable) {
+            closeCodec()
             surfaceRequest.willNotProvideSurface()
             onError(error)
         }

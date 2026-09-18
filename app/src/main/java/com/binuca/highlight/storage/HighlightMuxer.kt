@@ -13,6 +13,7 @@ import com.binuca.highlight.capture.ClipDuration
 import com.binuca.highlight.capture.EncodedTrack
 import java.time.Clock
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -36,8 +37,13 @@ class HighlightMuxer(
             put(MediaStore.Video.Media.IS_PENDING, 1)
         }
         val collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = resolver.insert(collection, values)
-            ?: return@withContext CaptureResult.Failure("Não foi possível criar o arquivo na Galeria")
+        val uri = try {
+            resolver.insert(collection, values)
+                ?: return@withContext CaptureResult.Failure("Não foi possível criar o arquivo na Galeria")
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            return@withContext CaptureResult.Failure(error.message ?: "Falha ao criar o arquivo na Galeria")
+        }
         try {
             resolver.openFileDescriptor(uri, "w", null).use { descriptor ->
                 checkNotNull(descriptor) { "Não foi possível abrir o arquivo do highlight" }
@@ -49,12 +55,13 @@ class HighlightMuxer(
                     muxer.start()
                     val normalizer = TimestampNormalizer(snapshot.startTimeUs)
                     val info = MediaCodec.BufferInfo()
+                    val sampleBuffer = MuxerSampleBuffer(snapshot.samples.maxOf { it.size })
                     snapshot.samples.forEach { sample ->
                         val flags = sample.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG.inv()
                         info.set(0, sample.size, normalizer.normalize(sample.presentationTimeUs), flags)
                         muxer.writeSampleData(
                             if (sample.track == EncodedTrack.VIDEO) videoTrack else audioTrack,
-                            sample.readOnlyData(),
+                            sampleBuffer.prepare(sample),
                             info,
                         )
                     }
@@ -63,10 +70,13 @@ class HighlightMuxer(
                     muxer.release()
                 }
             }
-            resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+            check(resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null) > 0) {
+                "Não foi possível publicar o highlight na Galeria"
+            }
             CaptureResult.Success(uri, snapshot.actualDurationUs)
         } catch (error: Throwable) {
-            resolver.delete(uri, null, null)
+            runCatching { resolver.delete(uri, null, null) }
+            if (error is CancellationException) throw error
             CaptureResult.Failure(error.message ?: "Falha ao salvar o highlight")
         }
     }
